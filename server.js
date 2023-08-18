@@ -6,6 +6,50 @@ const cors = require("cors");
 app.use(cors());
 const bcrypt = require("bcryptjs");
 
+const http = require("http");
+const socketIo = require("socket.io");
+const server = http.createServer(app);
+const io = socketIo(server);
+
+const activeMatches = {};
+
+io.on("connection", (socket) => {
+  console.log("A user connected");
+
+  socket.on("sendRoomCode", (code) => {
+    console.log(`User joined game with code: ${code}`);
+
+    if (!activeMatches[code]) {
+      activeMatches[code] = {
+        player1: { socket, id: socket.id },
+        player2: null,
+      };
+    } else if (!activeMatches[code].player2) {
+      activeMatches[code].player2 = { socket, id: socket.id };
+
+      const matchInfo = {
+        code,
+        player1: {
+          id: activeMatches[code].player1.id,
+        },
+        player2: {
+          id: socket.id,
+        },
+      };
+
+      const player1Socket = activeMatches[code].player1.socket;
+      player1Socket.emit("gameStart", matchInfo);
+      socket.emit("gameStart", matchInfo);
+    } else {
+      socket.emit("gameFull");
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("A user disconnected");
+  });
+});
+
 const jwt = require("jsonwebtoken");
 
 const JWT_SECRET =
@@ -15,10 +59,6 @@ mongoose.connect(
   "mongodb+srv://iva:iva@cluster0.muybin8.mongodb.net/?retryWrites=true&w=majority"
 );
 mongoose.connection.on("connected", () => console.log("Connected to db"));
-
-app.get("/", (req, res) => {
-  res.send("evo malo blejica na homepage");
-});
 
 require("./userDetails");
 const User = mongoose.model("UserInfo");
@@ -62,7 +102,7 @@ app.post("/login-user", async (req, res) => {
   res.json({ status: "error", error: "Invalid Password" });
 });
 
-app.post("/userData", async (req, res) => {
+app.post("/Lobby", async (req, res) => {
   const { token } = req.body;
   try {
     const user = jwt.verify(token, JWT_SECRET);
