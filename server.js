@@ -3,13 +3,17 @@ const app = express();
 const mongoose = require("mongoose");
 app.use(express.json());
 const cors = require("cors");
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 const bcrypt = require("bcryptjs");
 
+const port = process.env.PORT || 3000;
+const server = app.listen(port, () =>
+  console.log(`Listening on port ${port}...`)
+);
+
 const http = require("http");
-const socketIo = require("socket.io");
-const server = http.createServer(app);
-const io = socketIo(server);
+const socketio = require("socket.io");
+const io = socketio(server);
 
 const activeMatches = {};
 
@@ -129,6 +133,3 @@ app.post("/Lobby", async (req, res) => {
       });
   } catch (error) {}
 });
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Listening on port ${port}...`));
