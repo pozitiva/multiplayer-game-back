@@ -15,6 +15,10 @@ const http = require("http");
 const socketio = require("socket.io");
 const io = socketio(server);
 
+const MAX_MOVES = 10;
+const BARBIE_POINTS = 10;
+const BOMB_POINTS = -5;
+
 const activeMatches = {};
 
 io.on("connection", (socket) => {
@@ -29,6 +33,11 @@ io.on("connection", (socket) => {
           socket,
           id: socket.id,
           dashboard: Array(6).fill(Array(6).fill(null)),
+          movesLeft: MAX_MOVES,
+          movesTaken: 0,
+          points: 0,
+          bombs: [],
+          barbies: [],
           placedItems: [],
         },
         player2: null,
@@ -38,6 +47,11 @@ io.on("connection", (socket) => {
         socket,
         id: socket.id,
         dashboard: Array(6).fill(Array(6).fill(null)),
+        movesLeft: MAX_MOVES,
+        movesTaken: 0,
+        points: 0,
+        bombs: [],
+        barbies: [],
         placedItems: [],
       };
 
@@ -64,21 +78,56 @@ io.on("connection", (socket) => {
   });
 
   socket.on("updateDashboard", (data) => {
-    const matchCode = data.matchCode;
+    const code = data.code;
     const player =
-      activeMatches[matchCode].player1.id === socket.id ? "player1" : "player2";
+      activeMatches[code].player1.id === socket.id ? "player1" : "player2";
 
-    activeMatches[matchCode][player].dashboard = data.dashboard;
+    activeMatches[code][player].dashboard = data.dashboard;
     // const bombs = data.bombs || [];
     // const barbies = data.barbies || [];
 
     const otherPlayer = player === "player1" ? "player2" : "player1";
-    const otherDashboard = activeMatches[matchCode][otherPlayer].dashboard;
-    activeMatches[matchCode][otherPlayer].socket.emit("updateDashboard", {
+    const otherDashboard = activeMatches[code][otherPlayer].dashboard;
+    activeMatches[code][otherPlayer].socket.emit("updateDashboard", {
       dashboards: otherDashboard,
       // bombs,
       // barbies,
     });
+  });
+
+  socket.on("guess", (data) => {
+    const matchData = activeMatches[data.matchCode];
+    const currentPlayer =
+      matchData.player1.socket.id === socket.id ? "player1" : "player2";
+
+    if (matchData && matchData[currentPlayer].movesTaken < MAX_MOVES) {
+      matchData.movesLeft--;
+
+      const guessedPosition = data.position;
+
+      if (matchData.bombs.includes(guessedPosition)) {
+        matchData[currentPlayer].points += BOMB_POINTS;
+      } else if (matchData.barbies.includes(guessedPosition)) {
+        matchData[currentPlayer].points += BARBIE_POINTS;
+      }
+
+      if (matchData.movesLeft === 0) {
+        const winner =
+          matchData.player1.points > matchData.player2.points
+            ? "player1"
+            : "player2";
+        matchData.player1.socket.emit("gameOver", {
+          winner,
+          points: matchData[winner].points,
+        });
+        matchData.player2.socket.emit("gameOver", {
+          winner,
+          points: matchData[winner].points,
+        });
+      } else {
+        socket.emit("updateScore", matchData[currentPlayer].points);
+      }
+    }
   });
 
   socket.on("placeItem", (data) => {
