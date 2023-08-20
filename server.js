@@ -25,11 +25,21 @@ io.on("connection", (socket) => {
 
     if (!activeMatches[code]) {
       activeMatches[code] = {
-        player1: { socket, id: socket.id },
+        player1: {
+          socket,
+          id: socket.id,
+          dashboard: Array(6).fill(Array(6).fill(null)),
+          placedItems: [],
+        },
         player2: null,
       };
     } else if (!activeMatches[code].player2) {
-      activeMatches[code].player2 = { socket, id: socket.id };
+      activeMatches[code].player2 = {
+        socket,
+        id: socket.id,
+        dashboard: Array(6).fill(Array(6).fill(null)),
+        placedItems: [],
+      };
 
       const matchInfo = {
         code,
@@ -51,6 +61,41 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("A user disconnected");
+  });
+
+  socket.on("updateDashboard", (data) => {
+    const matchCode = data.matchCode;
+    const player =
+      activeMatches[matchCode].player1.id === socket.id ? "player1" : "player2";
+
+    activeMatches[matchCode][player].dashboard = data.dashboard;
+    // const bombs = data.bombs || [];
+    // const barbies = data.barbies || [];
+
+    const otherPlayer = player === "player1" ? "player2" : "player1";
+    const otherDashboard = activeMatches[matchCode][otherPlayer].dashboard;
+    activeMatches[matchCode][otherPlayer].socket.emit("updateDashboard", {
+      dashboards: otherDashboard,
+      // bombs,
+      // barbies,
+    });
+  });
+
+  socket.on("placeItem", (data) => {
+    const matchCode = data.matchCode;
+    const player =
+      activeMatches[matchCode].player1.id === socket.id ? "player1" : "player2";
+    const item = data.item; // barbie ili bomb
+    const position = data.position;
+
+    activeMatches[matchCode][player].placedItems.push({ item, position });
+
+    // dogadjaj koji ce obavestiti drugog igraca o potezu
+    const otherPlayer = player === "player1" ? "player2" : "player1";
+    activeMatches[matchCode][otherPlayer].socket.emit("opponentPlacedItem", {
+      item,
+      position,
+    });
   });
 });
 
@@ -95,9 +140,7 @@ app.post("/login-user", async (req, res) => {
     return res.send({ error: "User not found" });
   }
   if (await bcrypt.compare(password, user.password)) {
-    const token = jwt.sign({ email: user.email }, JWT_SECRET, {
-      expiresIn: 10,
-    });
+    const token = jwt.sign({ email: user.email }, JWT_SECRET);
 
     if (res.status(201)) {
       return res.json({ status: "ok", data: token });
@@ -111,17 +154,8 @@ app.post("/login-user", async (req, res) => {
 app.post("/Lobby", async (req, res) => {
   const { token } = req.body;
   try {
-    const user = jwt.verify(token, JWT_SECRET, (err, res) => {
-      if (err) {
-        return "token expired";
-      }
-      return res;
-    });
+    const user = jwt.verify(token, JWT_SECRET);
     console.log(user);
-
-    if (user == "token expired") {
-      return res.send({ status: "error", data: "token expired" });
-    }
 
     const useremail = user.email;
     User.findOne({ email: useremail })
