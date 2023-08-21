@@ -19,7 +19,11 @@ const MAX_MOVES = 10;
 const BARBIE_POINTS = 10;
 const BOMB_POINTS = -5;
 
-const activeMatches = {};
+var activeMatches = {};
+
+const fillBombsAndBarbies = (player) => {
+  //IMPLEMENTIRATI
+};
 
 io.on("connection", (socket) => {
   console.log("A user connected");
@@ -32,28 +36,31 @@ io.on("connection", (socket) => {
         player1: {
           socket,
           id: socket.id,
-          dashboard: Array(6).fill(Array(6).fill(null)),
+          dashboard: null,
           movesLeft: MAX_MOVES,
-          movesTaken: 0,
           points: 0,
           bombs: [],
           barbies: [],
           placedItems: [],
         },
+        turn: socket.id,
         player2: null,
       };
     } else if (!activeMatches[code].player2) {
       activeMatches[code].player2 = {
         socket,
         id: socket.id,
-        dashboard: Array(6).fill(Array(6).fill(null)),
+        dashboard: null,
         movesLeft: MAX_MOVES,
-        movesTaken: 0,
         points: 0,
         bombs: [],
         barbies: [],
         placedItems: [],
       };
+
+      if (!activeMatches[code].player1 || !activeMatches[code].player2) {
+        return;
+      }
 
       const matchInfo = {
         code,
@@ -61,13 +68,12 @@ io.on("connection", (socket) => {
           id: activeMatches[code].player1.id,
         },
         player2: {
-          id: socket.id,
+          id: activeMatches[code].player2.id,
         },
       };
 
-      const player1Socket = activeMatches[code].player1.socket;
-      player1Socket.emit("gameStart", matchInfo);
-      socket.emit("gameStart", matchInfo);
+      activeMatches[code].player2.socket.emit("gameStart", matchInfo);
+      activeMatches[code].player1.socket.emit("gameStart", matchInfo);
     } else {
       socket.emit("gameFull");
     }
@@ -78,54 +84,71 @@ io.on("connection", (socket) => {
   });
 
   socket.on("updateDashboard", (data) => {
-    const code = data.code;
-    const player =
-      activeMatches[code].player1.id === socket.id ? "player1" : "player2";
+    const { code, player, dashboard } = data;
+    //TREBA DA PRODJES KROZ MATRICU I DA POSTAVIS NIZOVE BOMBI I BARBIKA
+    if (activeMatches[code]) {
+      const match = activeMatches[code];
 
-    activeMatches[code][player].dashboard = data.dashboard;
-    // const bombs = data.bombs || [];
-    // const barbies = data.barbies || [];
+      if (match.player1.id == player) {
+        match.player1.dashboard = dashboard;
+        //fillBombsAndBarbies(match.player1);
+      } else if (match.player2.id == player) {
+        match.player2.dashboard = dashboard;
+        //fillBombsAndBarbies(match.player2);
+      }
 
-    const otherPlayer = player === "player1" ? "player2" : "player1";
-    const otherDashboard = activeMatches[code][otherPlayer].dashboard;
-    activeMatches[code][otherPlayer].socket.emit("updateDashboard", {
-      dashboards: otherDashboard,
-      // bombs,
-      // barbies,
-    });
+      const otherPlayer = player === "player1" ? "player2" : "player1";
+
+      if (
+        !activeMatches[code].player1.dashboard ||
+        !activeMatches[code].player2.dashboard
+      ) {
+        return;
+      }
+
+      activeMatches[code].player2.socket.emit("returnDashboard");
+      activeMatches[code].player1.socket.emit("returnDashboard");
+
+      console.log(`Dashboard updated for ${player} in match ${code}`);
+    }
   });
 
   socket.on("guess", (data) => {
-    const matchData = activeMatches[data.matchCode];
-    const currentPlayer =
-      matchData.player1.socket.id === socket.id ? "player1" : "player2";
+    const { code, player, position } = data;
+    const match = activeMatches[code];
 
-    if (matchData && matchData[currentPlayer].movesTaken < MAX_MOVES) {
-      matchData.movesLeft--;
+    if (
+      match &&
+      match[player].movesTaken < MAX_MOVES &&
+      match.turn === player
+    ) {
+      match[player].movesLeft--;
 
-      const guessedPosition = data.position;
+      const guessedPosition = position;
 
-      if (matchData.bombs.includes(guessedPosition)) {
-        matchData[currentPlayer].points += BOMB_POINTS;
-      } else if (matchData.barbies.includes(guessedPosition)) {
-        matchData[currentPlayer].points += BARBIE_POINTS;
+      if (match[player].bombs.includes(guessedPosition)) {
+        match[player].points += BOMB_POINTS;
+      } else if (match[player].barbies.includes(guessedPosition)) {
+        match[player].points += BARBIE_POINTS;
       }
 
-      if (matchData.movesLeft === 0) {
+      match.turn = player === "player1" ? "player2" : "player1"; // Switch turn
+
+      if (match[player].movesLeft === 0) {
         const winner =
-          matchData.player1.points > matchData.player2.points
+          match.player1.points > matchData.player2.points
             ? "player1"
             : "player2";
-        matchData.player1.socket.emit("gameOver", {
+        match.player1.socket.emit("gameOver", {
           winner,
           points: matchData[winner].points,
         });
-        matchData.player2.socket.emit("gameOver", {
+        match.player2.socket.emit("gameOver", {
           winner,
-          points: matchData[winner].points,
+          points: match[winner].points,
         });
       } else {
-        socket.emit("updateScore", matchData[currentPlayer].points);
+        socket.emit("updateScore", match[player].points);
       }
     }
   });
