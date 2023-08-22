@@ -11,7 +11,6 @@ const server = app.listen(port, () =>
   console.log(`Listening on port ${port}...`)
 );
 
-const http = require("http");
 const socketio = require("socket.io");
 const io = socketio(server);
 
@@ -21,13 +20,68 @@ const BOMB_POINTS = -5;
 
 var activeMatches = {};
 
+const handleGuess = (match, player) => {
+  if (!match || player.movesLeft <= 0 || !match.turn == player.id) {
+    return;
+  }
+
+  match.player.movesLeft--;
+
+  if (match.player.playedPositions.includes(position)) {
+    socket.emit("positionAlreadyPlayed");
+    return;
+  }
+
+  match.player.playedPositions.push(position);
+
+  if (match.player.bombs.includes(position)) {
+    match.player.points += BOMB_POINTS;
+  } else if (match.player.barbies.includes(position)) {
+    match.player.points += BARBIE_POINTS;
+  }
+
+  match.turn = player === "player1" ? "player2" : "player1";
+
+  if (match.player1.movesLeft === 0 && match.player2.movesLeft === 0) {
+    const winner =
+      match.player1.points > match.player2.points ? "player1" : "player2";
+    match.player1.socket.emit("gameOver", {
+      winner,
+    });
+    match.player2.socket.emit("gameOver", {
+      winner,
+    });
+  } else {
+    socket.emit("updateScore", match.player.points);
+    match.player.movesLeft--;
+    match.player.socket.emit("yourTurn");
+    match[player === "player1" ? "player2" : "player1"].socket.emit(
+      "opponentTurn"
+    );
+  }
+};
+
 const fillBombsAndBarbies = (player) => {
-  //IMPLEMENTIRATI
+  if (!player || !player.dashboard) {
+    console.log(`Player data or dashboard not found for ${player}`);
+    return;
+  }
+  const playerDashboard = player.dashboard;
+
+  for (let row = 0; row < playerDashboard.length; row++) {
+    for (let col = 0; col < playerDashboard[row].length; col++) {
+      const cellValue = playerDashboard[row][col];
+
+      if (cellValue === "barbie") {
+        player.barbies.push({ row, col });
+      } else if (cellValue === "bomb") {
+        player.bombs.push({ row, col });
+      }
+    }
+  }
 };
 
 io.on("connection", (socket) => {
-  console.log("A user connected");
-
   socket.on("sendRoomCode", (code) => {
     console.log(`User joined game with code: ${code}`);
 
@@ -41,7 +95,7 @@ io.on("connection", (socket) => {
           points: 0,
           bombs: [],
           barbies: [],
-          placedItems: [],
+          playedPositions: [],
         },
         turn: socket.id,
         player2: null,
@@ -55,13 +109,14 @@ io.on("connection", (socket) => {
         points: 0,
         bombs: [],
         barbies: [],
-        placedItems: [],
+        playedPositions: [],
       };
 
       if (!activeMatches[code].player1 || !activeMatches[code].player2) {
         return;
       }
 
+      console.log(`A user connected on socket ${socket.id}`);
       const matchInfo = {
         code,
         player1: {
@@ -72,6 +127,10 @@ io.on("connection", (socket) => {
         },
       };
 
+      // console.log(
+      //   `p1 ${activeMatches[code].player1.socket.id} ${activeMatches[code].player1.id}\n
+      //   p2 ${activeMatches[code].player2.socket.id} ${activeMatches[code].player2.id}`
+      // );
       activeMatches[code].player2.socket.emit("gameStart", matchInfo);
       activeMatches[code].player1.socket.emit("gameStart", matchInfo);
     } else {
@@ -80,22 +139,24 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("A user disconnected");
+    console.log("A user disconnected " + socket.id);
   });
 
   socket.on("updateDashboard", (data) => {
     const { code, player, dashboard } = data;
-    //TREBA DA PRODJES KROZ MATRICU I DA POSTAVIS NIZOVE BOMBI I BARBIKA
+
     if (activeMatches[code]) {
       const match = activeMatches[code];
 
       if (match.player1.id == player) {
         match.player1.dashboard = dashboard;
-        //fillBombsAndBarbies(match.player1);
+        fillBombsAndBarbies(match.player1);
       } else if (match.player2.id == player) {
         match.player2.dashboard = dashboard;
-        //fillBombsAndBarbies(match.player2);
+        fillBombsAndBarbies(match.player2);
       }
+
+      console.log(`Dashboard updated for ${player} in match ${code}`);
 
       const otherPlayer = player === "player1" ? "player2" : "player1";
 
@@ -106,68 +167,20 @@ io.on("connection", (socket) => {
         return;
       }
 
-      activeMatches[code].player2.socket.emit("returnDashboard");
-      activeMatches[code].player1.socket.emit("returnDashboard");
-
-      console.log(`Dashboard updated for ${player} in match ${code}`);
+      activeMatches[code].player2.socket.emit("readyGame");
+      activeMatches[code].player1.socket.emit("readyGame");
     }
   });
 
-  socket.on("guess", (data) => {
+  socket.on("guessPosition", (data) => {
     const { code, player, position } = data;
     const match = activeMatches[code];
 
-    if (
-      match &&
-      match[player].movesTaken < MAX_MOVES &&
-      match.turn === player
-    ) {
-      match[player].movesLeft--;
-
-      const guessedPosition = position;
-
-      if (match[player].bombs.includes(guessedPosition)) {
-        match[player].points += BOMB_POINTS;
-      } else if (match[player].barbies.includes(guessedPosition)) {
-        match[player].points += BARBIE_POINTS;
-      }
-
-      match.turn = player === "player1" ? "player2" : "player1"; // Switch turn
-
-      if (match[player].movesLeft === 0) {
-        const winner =
-          match.player1.points > matchData.player2.points
-            ? "player1"
-            : "player2";
-        match.player1.socket.emit("gameOver", {
-          winner,
-          points: matchData[winner].points,
-        });
-        match.player2.socket.emit("gameOver", {
-          winner,
-          points: match[winner].points,
-        });
-      } else {
-        socket.emit("updateScore", match[player].points);
-      }
+    if (player == match.player1) {
+      handleGuess(match, match.player1);
+    } else if (player == match.player2) {
+      handleGuess(match, match.player2);
     }
-  });
-
-  socket.on("placeItem", (data) => {
-    const matchCode = data.matchCode;
-    const player =
-      activeMatches[matchCode].player1.id === socket.id ? "player1" : "player2";
-    const item = data.item; // barbie ili bomb
-    const position = data.position;
-
-    activeMatches[matchCode][player].placedItems.push({ item, position });
-
-    // dogadjaj koji ce obavestiti drugog igraca o potezu
-    const otherPlayer = player === "player1" ? "player2" : "player1";
-    activeMatches[matchCode][otherPlayer].socket.emit("opponentPlacedItem", {
-      item,
-      position,
-    });
   });
 });
 
