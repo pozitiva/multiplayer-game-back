@@ -20,31 +20,39 @@ const BOMB_POINTS = -5;
 
 var activeMatches = {};
 
-const handleGuess = (match, player) => {
+const handleGuess = (match, player, position, otherPlayer) => {
   if (!match || player.movesLeft <= 0 || !match.turn == player.id) {
     return;
   }
 
-  match.player.movesLeft--;
+  player.movesLeft--;
 
-  if (match.player.playedPositions.includes(position)) {
-    socket.emit("positionAlreadyPlayed");
+  if (player.playedPositions.includes(position)) {
+    player.socket.emit("positionAlreadyPlayed");
     return;
   }
 
-  match.player.playedPositions.push(position);
+  player.playedPositions.push(position);
 
-  if (match.player.bombs.includes(position)) {
-    match.player.points += BOMB_POINTS;
-  } else if (match.player.barbies.includes(position)) {
-    match.player.points += BARBIE_POINTS;
+  var field = null;
+  if (player.bombs.includes(position)) {
+    player.points += BOMB_POINTS;
+    field = "bomb";
+  } else if (player.barbies.includes(position)) {
+    player.points += BARBIE_POINTS;
+    field = "barbie";
   }
 
-  match.turn = player === "player1" ? "player2" : "player1";
-
   if (match.player1.movesLeft === 0 && match.player2.movesLeft === 0) {
-    const winner =
-      match.player1.points > match.player2.points ? "player1" : "player2";
+    var winner;
+    if (match.player1.points > match.player2.points) {
+      winner = match.player1.id;
+    } else if (match.player2.points > match.player1.points) {
+      winner = match.player2.id;
+    } else {
+      winner = "tie";
+    }
+
     match.player1.socket.emit("gameOver", {
       winner,
     });
@@ -52,12 +60,26 @@ const handleGuess = (match, player) => {
       winner,
     });
   } else {
-    socket.emit("updateScore", match.player.points);
-    match.player.movesLeft--;
-    match.player.socket.emit("yourTurn");
-    match[player === "player1" ? "player2" : "player1"].socket.emit(
-      "opponentTurn"
-    );
+    match.turn =
+      match.turn == match.player1.id ? match.player2.id : match.player1.id;
+
+    player.socket.emit("playerGuess", {
+      player,
+      position,
+      field,
+      turn: match.turn,
+      myPoints: player.points,
+      opponentPoints: otherPlayer.points,
+    });
+
+    otherPlayer.socket.emit("playerGuess", {
+      player,
+      position,
+      field,
+      turn: match.turn,
+      myPoints: otherPlayer.points,
+      opponentPoints: player.points,
+    });
   }
 };
 
@@ -167,8 +189,12 @@ io.on("connection", (socket) => {
         return;
       }
 
-      activeMatches[code].player2.socket.emit("readyGame");
-      activeMatches[code].player1.socket.emit("readyGame");
+      activeMatches[code].player2.socket.emit("readyGame", {
+        turn: match.turn,
+      });
+      activeMatches[code].player1.socket.emit("readyGame", {
+        turn: match.turn,
+      });
     }
   });
 
@@ -177,9 +203,11 @@ io.on("connection", (socket) => {
     const match = activeMatches[code];
 
     if (player == match.player1) {
-      handleGuess(match, match.player1);
+      handleGuess(match, match.player1, position, match.player2);
     } else if (player == match.player2) {
-      handleGuess(match, match.player2);
+      handleGuess(match, match.player2, position, match.player1);
+    } else {
+      socket.emit("invalidGuess");
     }
   });
 });
