@@ -21,7 +21,7 @@ const BOMB_POINTS = -5;
 var activeMatches = {};
 
 const handleGuess = (match, player, position, otherPlayer) => {
-  if (!match || player.movesLeft <= 0 || !match.turn == player.id) {
+  if (!match || player.movesLeft <= 0 || match.turn != player.id) {
     return;
   }
 
@@ -35,14 +35,31 @@ const handleGuess = (match, player, position, otherPlayer) => {
   player.playedPositions.push(position);
 
   var field = null;
-  if (player.bombs.includes(position)) {
+
+  const isBomb = player.bombs.some(
+    (bombPos) => bombPos.row === position.row && bombPos.col === position.col
+  );
+
+  const isBarbie = player.barbies.some(
+    (barbiePos) =>
+      barbiePos.row === position.row && barbiePos.col === position.col
+  );
+
+  if (isBomb) {
     player.points += BOMB_POINTS;
     field = "bomb";
-  } else if (player.barbies.includes(position)) {
+  } else if (isBarbie) {
     player.points += BARBIE_POINTS;
     field = "barbie";
   }
 
+  // if (player.bombs.includes(position)) {
+  //   player.points += BOMB_POINTS;
+  //   field = "bomb";
+  // } else if (player.barbies.includes(position)) {
+  //   player.points += BARBIE_POINTS;
+  //   field = "barbie";
+  // }
   if (match.player1.movesLeft === 0 && match.player2.movesLeft === 0) {
     var winner;
     if (match.player1.points > match.player2.points) {
@@ -69,7 +86,7 @@ const handleGuess = (match, player, position, otherPlayer) => {
       field,
       turn: match.turn,
       myPoints: player.points,
-      opponentPoints: otherPlayer.points,
+      opponentsPoints: otherPlayer.points,
     });
 
     otherPlayer.socket.emit("playerGuess", {
@@ -78,7 +95,7 @@ const handleGuess = (match, player, position, otherPlayer) => {
       field,
       turn: match.turn,
       myPoints: otherPlayer.points,
-      opponentPoints: player.points,
+      opponentsPoints: player.points,
     });
   }
 };
@@ -202,9 +219,9 @@ io.on("connection", (socket) => {
     const { code, player, position } = data;
     const match = activeMatches[code];
 
-    if (player == match.player1) {
+    if (player == match.player1.id) {
       handleGuess(match, match.player1, position, match.player2);
-    } else if (player == match.player2) {
+    } else if (player == match.player2.id) {
       handleGuess(match, match.player2, position, match.player1);
     } else {
       socket.emit("invalidGuess");
