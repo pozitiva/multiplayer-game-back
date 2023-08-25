@@ -36,11 +36,11 @@ const handleGuess = (match, player, position, otherPlayer) => {
 
   var field = null;
 
-  const isBomb = player.bombs.some(
+  const isBomb = otherPlayer.bombs.some(
     (bombPos) => bombPos.row === position.row && bombPos.col === position.col
   );
 
-  const isBarbie = player.barbies.some(
+  const isBarbie = otherPlayer.barbies.some(
     (barbiePos) =>
       barbiePos.row === position.row && barbiePos.col === position.col
   );
@@ -73,37 +73,25 @@ const handleGuess = (match, player, position, otherPlayer) => {
     match.turn =
       match.turn == match.player1.id ? match.player2.id : match.player1.id;
 
-    // const playerOneGuess = {
-    //   position,
-    //   field,
-    //   turn: match.turn,
-    //   myPoints: player.points,
-    //   opponentsPoints: otherPlayer.points,
-    // };
-
-    player.socket.emit("playerGuess", {
+    const playerOneGuess = {
       position,
       field,
       turn: match.turn,
       myPoints: player.points,
       opponentsPoints: otherPlayer.points,
-    });
+    };
 
-    // const otherPlayerGuess = {
-    //   position,
-    //   field,
-    //   turn: match.turn,
-    //   myPoints: otherPlayer.points,
-    //   opponentsPoints: player.points,
-    // };
+    player.socket.emit("playerGuess", playerOneGuess);
 
-    otherPlayer.socket.emit("playerGuess", {
+    const otherPlayerGuess = {
       position,
       field,
       turn: match.turn,
       myPoints: otherPlayer.points,
       opponentsPoints: player.points,
-    });
+    };
+
+    otherPlayer.socket.emit("playerGuess", otherPlayerGuess);
   }
 };
 
