@@ -85,7 +85,7 @@ const handleGuess = (match, player, position, otherPlayer) => {
     player.socket.emit("playerGuess", playerOneGuess);
 
     const otherPlayerGuess = {
-      player: otherPlayer.id,
+      player: player.id,
       position,
       field,
       turn: match.turn,
