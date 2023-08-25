@@ -53,13 +53,6 @@ const handleGuess = (match, player, position, otherPlayer) => {
     field = "barbie";
   }
 
-  // if (player.bombs.includes(position)) {
-  //   player.points += BOMB_POINTS;
-  //   field = "bomb";
-  // } else if (player.barbies.includes(position)) {
-  //   player.points += BARBIE_POINTS;
-  //   field = "barbie";
-  // }
   if (match.player1.movesLeft === 0 && match.player2.movesLeft === 0) {
     var winner;
     if (match.player1.points > match.player2.points) {
@@ -80,8 +73,15 @@ const handleGuess = (match, player, position, otherPlayer) => {
     match.turn =
       match.turn == match.player1.id ? match.player2.id : match.player1.id;
 
+    // const playerOneGuess = {
+    //   position,
+    //   field,
+    //   turn: match.turn,
+    //   myPoints: player.points,
+    //   opponentsPoints: otherPlayer.points,
+    // };
+
     player.socket.emit("playerGuess", {
-      player,
       position,
       field,
       turn: match.turn,
@@ -89,8 +89,15 @@ const handleGuess = (match, player, position, otherPlayer) => {
       opponentsPoints: otherPlayer.points,
     });
 
+    // const otherPlayerGuess = {
+    //   position,
+    //   field,
+    //   turn: match.turn,
+    //   myPoints: otherPlayer.points,
+    //   opponentsPoints: player.points,
+    // };
+
     otherPlayer.socket.emit("playerGuess", {
-      player,
       position,
       field,
       turn: match.turn,
