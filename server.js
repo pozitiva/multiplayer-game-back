@@ -80,6 +80,8 @@ const handleGuess = (match, player, position, otherPlayer) => {
       turn: match.turn,
       myPoints: player.points,
       opponentsPoints: otherPlayer.points,
+      myMovesLeft: player.movesLeft,
+      opponentsMovesLeft: otherPlayer.movesLeft,
     };
 
     player.socket.emit("playerGuess", playerOneGuess);
@@ -91,6 +93,8 @@ const handleGuess = (match, player, position, otherPlayer) => {
       turn: match.turn,
       myPoints: otherPlayer.points,
       opponentsPoints: player.points,
+      myMovesLeft: otherPlayer.movesLeft,
+      opponentsMovesLeft: player.movesLeft,
     };
 
     otherPlayer.socket.emit("playerGuess", otherPlayerGuess);
@@ -176,6 +180,16 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("A user disconnected " + socket.id);
+    // if (activeMatches == {}) {
+    //   return;
+    // }
+    // for (match of activeMatches) {
+    //   if (match.player1.id == socket.id) {
+    //     match.player2.socket.emit("otherPlayerLeft");
+    //   } else if (match.player2.id == socket.id) {
+    //     match.player1.socket.emit("otherPlayerLeft");
+    //   }
+    // }
   });
 
   socket.on("updateDashboard", (data) => {
