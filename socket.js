@@ -111,7 +111,6 @@ function sockets(server) {
   };
 
   io.on("connection", (socket) => {
-    console.log("A user connecter " + socket.id);
     socket.on("sendRoomCode", (data) => {
       const { code, email } = data;
       console.log(`User joined game with code: ${code}`);
@@ -172,19 +171,20 @@ function sockets(server) {
     });
 
     socket.on("disconnect", () => {
-      // console.log("A user disconnected " + socket.id);
-      // if (activeMatches == {}) {
-      //   return;
-      // }
-      // Object.values(activeMatches).forEach((match) => {
-      //   if (match.player1 && match.player1.id == socket.id) {
-      //     match.player2.socket.emit("otherPlayerLeft");
-      //     delete match;
-      //   } else if (match.player2 && match.player2.id == socket.id) {
-      //     match.player1.socket.emit("otherPlayerLeft");
-      //     delete match;
-      //   }
-      // });
+      console.log("A user disconnected " + socket.id);
+      if (activeMatches == {}) {
+        return;
+      }
+
+      Object.values(activeMatches).forEach((match) => {
+        if (match.player1 && match.player1.id == socket.id) {
+          match.player2.socket.emit("otherPlayerLeft");
+          delete match;
+        } else if (match.player2 && match.player2.id == socket.id) {
+          match.player1.socket.emit("otherPlayerLeft");
+          delete match;
+        }
+      });
     });
 
     socket.on("updateDashboard", (data) => {
