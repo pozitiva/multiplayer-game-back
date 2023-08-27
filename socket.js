@@ -174,10 +174,10 @@ function sockets(server) {
       }
 
       Object.values(activeMatches).forEach((match) => {
-        if (match.player1.id == socket.id) {
+        if (match.player1 && match.player1.id == socket.id) {
           match.player2.socket.emit("otherPlayerLeft");
           delete match;
-        } else if (match.player2.id == socket.id) {
+        } else if (match.player2 && match.player2.id == socket.id) {
           match.player1.socket.emit("otherPlayerLeft");
           delete match;
         }
