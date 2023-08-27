@@ -1,6 +1,6 @@
-# Server Side README
+# Server Side
 
-# BarbieHeimer Multiplayer Online Game, using React.js for front-end, Node.js for Back-end and Socket.io for real-time communication
+BarbieHeimer Multiplayer Online Game, using React.js for front-end, Node.js for Back-end and Socket.io for real-time communication
 
 ### Prerequisites
 
