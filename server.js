@@ -69,6 +69,7 @@ const handleGuess = (match, player, position, otherPlayer) => {
     match.player2.socket.emit("gameOver", {
       winner,
     });
+    delete activeMatches[match];
   } else {
     match.turn =
       match.turn == match.player1.id ? match.player2.id : match.player1.id;
@@ -122,7 +123,8 @@ const fillBombsAndBarbies = (player) => {
 };
 
 io.on("connection", (socket) => {
-  socket.on("sendRoomCode", (code) => {
+  socket.on("sendRoomCode", (data) => {
+    const { code, email } = data;
     console.log(`User joined game with code: ${code}`);
 
     if (!activeMatches[code]) {
@@ -136,11 +138,15 @@ io.on("connection", (socket) => {
           bombs: [],
           barbies: [],
           playedPositions: [],
+          email: email,
         },
         turn: socket.id,
         player2: null,
       };
-    } else if (!activeMatches[code].player2) {
+    } else if (
+      !activeMatches[code].player2 &&
+      activeMatches[code].player1.email !== email
+    ) {
       activeMatches[code].player2 = {
         socket,
         id: socket.id,
@@ -150,6 +156,7 @@ io.on("connection", (socket) => {
         bombs: [],
         barbies: [],
         playedPositions: [],
+        email: email,
       };
 
       if (!activeMatches[code].player1 || !activeMatches[code].player2) {
@@ -166,11 +173,6 @@ io.on("connection", (socket) => {
           id: activeMatches[code].player2.id,
         },
       };
-
-      // console.log(
-      //   `p1 ${activeMatches[code].player1.socket.id} ${activeMatches[code].player1.id}\n
-      //   p2 ${activeMatches[code].player2.socket.id} ${activeMatches[code].player2.id}`
-      // );
       activeMatches[code].player2.socket.emit("gameStart", matchInfo);
       activeMatches[code].player1.socket.emit("gameStart", matchInfo);
     } else {
@@ -180,16 +182,19 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("A user disconnected " + socket.id);
-    // if (activeMatches == {}) {
-    //   return;
-    // }
-    // for (match of activeMatches) {
-    //   if (match.player1.id == socket.id) {
-    //     match.player2.socket.emit("otherPlayerLeft");
-    //   } else if (match.player2.id == socket.id) {
-    //     match.player1.socket.emit("otherPlayerLeft");
-    //   }
-    // }
+    if (activeMatches == {}) {
+      return;
+    }
+
+    Object.values(activeMatches).forEach((match) => {
+      if (match.player1.id == socket.id) {
+        match.player2.socket.emit("otherPlayerLeft");
+        delete match;
+      } else if (match.player2.id == socket.id) {
+        match.player1.socket.emit("otherPlayerLeft");
+        delete match;
+      }
+    });
   });
 
   socket.on("updateDashboard", (data) => {
