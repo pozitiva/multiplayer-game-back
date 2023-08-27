@@ -41,6 +41,35 @@ function sockets(server) {
       field = "barbie";
     }
 
+    match.turn =
+      match.turn == match.player1.id ? match.player2.id : match.player1.id;
+
+    const playerOneGuess = {
+      player: player.id,
+      position,
+      field,
+      turn: match.turn,
+      myPoints: player.points,
+      opponentsPoints: otherPlayer.points,
+      myMovesLeft: player.movesLeft,
+      opponentsMovesLeft: otherPlayer.movesLeft,
+    };
+
+    player.socket.emit("playerGuess", playerOneGuess);
+
+    const otherPlayerGuess = {
+      player: player.id,
+      position,
+      field,
+      turn: match.turn,
+      myPoints: otherPlayer.points,
+      opponentsPoints: player.points,
+      myMovesLeft: otherPlayer.movesLeft,
+      opponentsMovesLeft: player.movesLeft,
+    };
+
+    otherPlayer.socket.emit("playerGuess", otherPlayerGuess);
+
     if (match.player1.movesLeft === 0 && match.player2.movesLeft === 0) {
       var winner;
       if (match.player1.points > match.player2.points) {
@@ -58,35 +87,6 @@ function sockets(server) {
         winner,
       });
       delete activeMatches[match];
-    } else {
-      match.turn =
-        match.turn == match.player1.id ? match.player2.id : match.player1.id;
-
-      const playerOneGuess = {
-        player: player.id,
-        position,
-        field,
-        turn: match.turn,
-        myPoints: player.points,
-        opponentsPoints: otherPlayer.points,
-        myMovesLeft: player.movesLeft,
-        opponentsMovesLeft: otherPlayer.movesLeft,
-      };
-
-      player.socket.emit("playerGuess", playerOneGuess);
-
-      const otherPlayerGuess = {
-        player: player.id,
-        position,
-        field,
-        turn: match.turn,
-        myPoints: otherPlayer.points,
-        opponentsPoints: player.points,
-        myMovesLeft: otherPlayer.movesLeft,
-        opponentsMovesLeft: player.movesLeft,
-      };
-
-      otherPlayer.socket.emit("playerGuess", otherPlayerGuess);
     }
   };
 
@@ -131,12 +131,10 @@ function sockets(server) {
           turn: socket.id,
           player2: null,
         };
+      } else if (activeMatches[code].player1.email === email) {
+        socket.emit("alreadyPlaying");
+        return;
       } else if (!activeMatches[code].player2) {
-        if (activeMatches[code].player1.email === email) {
-          socket.emit("alreadyPlaying");
-          return;
-        }
-
         activeMatches[code].player2 = {
           socket,
           id: socket.id,
@@ -171,20 +169,23 @@ function sockets(server) {
     });
 
     socket.on("disconnect", () => {
-      console.log("A user disconnected " + socket.id);
-      if (activeMatches == {}) {
-        return;
-      }
+      for (const matchCode in activeMatches) {
+        const match = activeMatches[matchCode];
 
-      Object.values(activeMatches).forEach((match) => {
-        if (match.player1 && match.player1.id == socket.id) {
-          match.player2.socket.emit("otherPlayerLeft");
-          delete match;
-        } else if (match.player2 && match.player2.id == socket.id) {
-          match.player1.socket.emit("otherPlayerLeft");
-          delete match;
+        if (match.player1 && match.player1.socket.id === socket.id) {
+          if (match.player2) {
+            match.player2.socket.emit("otherPlayerLeft");
+          }
+          delete activeMatches[matchCode];
+          break;
+        } else if (match.player2 && match.player2.socket.id === socket.id) {
+          if (match.player1) {
+            match.player1.socket.emit("otherPlayerLeft");
+          }
+          delete activeMatches[matchCode];
+          break;
         }
-      });
+      }
     });
 
     socket.on("updateDashboard", (data) => {
@@ -203,7 +204,7 @@ function sockets(server) {
 
         console.log(`Dashboard updated for ${player} in match ${code}`);
 
-        const otherPlayer = player === "player1" ? "player2" : "player1";
+        // const otherPlayer = player === "player1" ? "player2" : "player1";
 
         if (
           !activeMatches[code].player1.dashboard ||
