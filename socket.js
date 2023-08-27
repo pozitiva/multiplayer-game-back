@@ -131,10 +131,11 @@ function sockets(server) {
           turn: socket.id,
           player2: null,
         };
-      } else if (activeMatches[code].player1.email === email) {
-        socket.emit("alreadyPlaying");
-        return;
       } else if (!activeMatches[code].player2) {
+        if (activeMatches[code].player1.email === email) {
+          socket.emit("alreadyPlaying");
+          return;
+        }
         activeMatches[code].player2 = {
           socket,
           id: socket.id,
